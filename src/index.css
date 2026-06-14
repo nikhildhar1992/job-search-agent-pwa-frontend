@@ -99,6 +99,107 @@ textarea {
   resize: vertical;
 }
 
+.prompt-recorder-layout {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.recorder-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  padding: 0.8rem;
+  background-color: #f8fbff;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.recorder-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.microphone-button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.72rem 0.78rem;
+  background: linear-gradient(130deg, #0f172a, #1e293b);
+  color: #f8fafc;
+  font-weight: 600;
+  font: inherit;
+}
+
+.microphone-button.is-recording {
+  background: linear-gradient(130deg, #b91c1c, #ef4444);
+}
+
+.microphone-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.recorder-meta p {
+  margin: 0.2rem 0;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.recording-indicator {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #b91c1c;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.recording-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background-color: #ef4444;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.microphone-error {
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background-color: #fef2f2;
+  color: #b91c1c;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.88rem;
+}
+
+.audio-format {
+  margin: 0;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.audio-player {
+  width: 100%;
+}
+
+.transcript-placeholder {
+  border: 1px dashed #bfd3ea;
+  border-radius: 12px;
+  background-color: #f8fbff;
+  padding: 0.8rem;
+}
+
+.transcript-placeholder h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.transcript-placeholder p {
+  margin: 0;
+  color: #475569;
+}
+
 .search-button {
   border: 0;
   cursor: pointer;
@@ -110,6 +211,18 @@ textarea {
 
 .search-button:hover {
   filter: brightness(1.05);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
 }
 
 .results-header {
@@ -220,5 +333,11 @@ textarea {
 
   .field-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .prompt-recorder-layout {
+    grid-template-columns: 1fr 240px;
+    align-items: start;
+    gap: 1rem;
   }
 }

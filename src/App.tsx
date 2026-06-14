@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type JobPosting = {
   id: number;
@@ -162,6 +162,35 @@ const MOCK_JOBS: JobPosting[] = [
 
 const JOB_COUNT_OPTIONS = [5, 10, 20];
 const ALL_FILTER_VALUE = "All";
+const AUDIO_MIME_TYPE = "audio/webm";
+
+type RecorderStatus = "idle" | "recording" | "stopping" | "stopped" | "error";
+
+const formatDuration = (seconds: number): string => {
+  const minutesPart = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const secondsPart = (seconds % 60).toString().padStart(2, "0");
+  return `${minutesPart}:${secondsPart}`;
+};
+
+const getMicrophoneErrorMessage = (error: unknown): string => {
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      return "Microphone access was denied. Please allow microphone permission and try again.";
+    }
+
+    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      return "No microphone device was found on this device.";
+    }
+
+    if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+      return "Microphone is busy or unavailable. Close other apps using it and retry.";
+    }
+  }
+
+  return "Unable to access microphone right now. Please try again.";
+};
 
 function App() {
   const [platform, setPlatform] = useState<string>(ALL_FILTER_VALUE);
@@ -169,6 +198,17 @@ function App() {
   const [jobCount, setJobCount] = useState<number>(10);
   const [prompt, setPrompt] = useState<string>("");
   const [results, setResults] = useState<JobPosting[]>(MOCK_JOBS.slice(0, 10));
+  const [recorderStatus, setRecorderStatus] = useState<RecorderStatus>("idle");
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const microphoneStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
+  const durationTimerRef = useRef<number | null>(null);
 
   const platforms = useMemo(
     () => [ALL_FILTER_VALUE, ...new Set(MOCK_JOBS.map((job) => job.platform))],
@@ -178,6 +218,155 @@ function App() {
     () => [ALL_FILTER_VALUE, ...new Set(MOCK_JOBS.map((job) => job.country))],
     []
   );
+
+  const stopMicrophoneStream = () => {
+    const stream = microphoneStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    stream.getTracks().forEach((track) => track.stop());
+    microphoneStreamRef.current = null;
+  };
+
+  const clearDurationTimer = () => {
+    if (durationTimerRef.current !== null) {
+      window.clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
+  };
+
+  const startRecording = async () => {
+    if (recorderStatus === "recording") {
+      return;
+    }
+
+    setMicrophoneError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setRecorderStatus("error");
+      setMicrophoneError("Microphone recording is not supported on this browser.");
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setRecorderStatus("error");
+      setMicrophoneError("Audio recording is not supported on this browser.");
+      return;
+    }
+
+    try {
+      stopMicrophoneStream();
+
+      recordingChunksRef.current = [];
+      setAudioBlob(null);
+      setRecordingDuration(0);
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphoneStreamRef.current = stream;
+
+      const canUseOpus = MediaRecorder.isTypeSupported("audio/webm;codecs=opus");
+      const canUseWebm = MediaRecorder.isTypeSupported(AUDIO_MIME_TYPE);
+      const mimeType = canUseOpus ? "audio/webm;codecs=opus" : canUseWebm ? AUDIO_MIME_TYPE : "";
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setRecorderStatus("error");
+        setMicrophoneError("Recording failed unexpectedly. Please try again.");
+        clearDurationTimer();
+        stopMicrophoneStream();
+        mediaRecorderRef.current = null;
+      };
+
+      recorder.onstop = () => {
+        clearDurationTimer();
+        stopMicrophoneStream();
+        mediaRecorderRef.current = null;
+
+        const durationSeconds = Math.max(
+          0,
+          Math.round((Date.now() - recordingStartTimeRef.current) / 1000)
+        );
+        setRecordingDuration(durationSeconds);
+
+        const finalBlob = new Blob(recordingChunksRef.current, { type: AUDIO_MIME_TYPE });
+        setAudioBlob(finalBlob);
+        setRecorderStatus("stopped");
+      };
+
+      recorder.start(250);
+      recordingStartTimeRef.current = Date.now();
+      setRecorderStatus("recording");
+
+      clearDurationTimer();
+      durationTimerRef.current = window.setInterval(() => {
+        const elapsedSeconds = Math.max(
+          0,
+          Math.floor((Date.now() - recordingStartTimeRef.current) / 1000)
+        );
+        setRecordingDuration(elapsedSeconds);
+      }, 250);
+    } catch (error) {
+      setRecorderStatus("error");
+      setMicrophoneError(getMicrophoneErrorMessage(error));
+      stopMicrophoneStream();
+      clearDurationTimer();
+    }
+  };
+
+  const stopRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      return;
+    }
+
+    setRecorderStatus("stopping");
+    recorder.stop();
+  };
+
+  useEffect(() => {
+    if (!audioBlob) {
+      setAudioUrl(null);
+      return;
+    }
+
+    const nextAudioUrl = URL.createObjectURL(audioBlob);
+    setAudioUrl(nextAudioUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextAudioUrl);
+    };
+  }, [audioBlob]);
+
+  useEffect(() => {
+    return () => {
+      clearDurationTimer();
+
+      const recorder = mediaRecorderRef.current;
+      if (recorder) {
+        recorder.ondataavailable = null;
+        recorder.onerror = null;
+        recorder.onstop = null;
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        mediaRecorderRef.current = null;
+      }
+
+      stopMicrophoneStream();
+    };
+  }, []);
 
   const runSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -251,15 +440,66 @@ function App() {
             </label>
           </div>
 
-          <label className="field">
-            <span>Prompt</span>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              rows={4}
-              placeholder="Example: Remote React role with design system experience"
-            />
-          </label>
+          <div className="prompt-recorder-layout">
+            <label className="field">
+              <span>Prompt</span>
+              <textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                rows={4}
+                placeholder="Example: Remote React role with design system experience"
+              />
+            </label>
+
+            <section className="recorder-panel" aria-live="polite">
+              <p className="recorder-title">Voice recording</p>
+              <button
+                type="button"
+                className={`microphone-button ${
+                  recorderStatus === "recording" ? "is-recording" : ""
+                }`}
+                onClick={recorderStatus === "recording" ? stopRecording : startRecording}
+                disabled={recorderStatus === "stopping"}
+              >
+                {recorderStatus === "recording" ? "Stop Recording" : "Start Recording"}
+              </button>
+
+              <div className="recorder-meta">
+                <p>
+                  Recording status: <strong>{recorderStatus}</strong>
+                </p>
+                <p>
+                  Recording duration: <strong>{formatDuration(recordingDuration)}</strong>
+                </p>
+              </div>
+
+              {recorderStatus === "recording" && (
+                <p className="recording-indicator">
+                  <span className="recording-dot" />
+                  Recording in progress
+                </p>
+              )}
+
+              {microphoneError && <p className="microphone-error">{microphoneError}</p>}
+
+              {audioBlob && (
+                <p className="audio-format">
+                  Saved audio format: <strong>{audioBlob.type || AUDIO_MIME_TYPE}</strong>
+                </p>
+              )}
+
+              {audioUrl && (
+                <audio controls className="audio-player" src={audioUrl}>
+                  Your browser does not support audio playback.
+                </audio>
+              )}
+            </section>
+          </div>
+
+          <section className="transcript-placeholder">
+            <h3>Transcript</h3>
+            <p>No transcript available yet</p>
+          </section>
 
           <button type="submit" className="search-button">
             Search jobs
