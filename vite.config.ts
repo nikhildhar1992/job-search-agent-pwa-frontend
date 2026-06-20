@@ -8,7 +8,7 @@ export default defineConfig({
     strictPort: true,  // optional: fail instead of auto-incrementing if taken
     proxy: {
       "/api": {
-        target: "http://localhost:4000",
+        target: "https://api.jobsearchagent.koshurwaan.in",
         changeOrigin: true,
       },
     },
