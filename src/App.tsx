@@ -1,168 +1,29 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-
-type JobPosting = {
-  id: number;
-  title: string;
-  company: string;
-  platform: "LinkedIn" | "Indeed" | "Glassdoor" | "Wellfound";
-  country: "United States" | "Canada" | "United Kingdom" | "Germany" | "India";
-  location: string;
-  salary: string;
-  posted: string;
-  summary: string;
-  tags: string[];
-};
-
-const MOCK_JOBS: JobPosting[] = [
-  {
-    id: 1,
-    title: "Frontend Engineer",
-    company: "NovaTech",
-    platform: "LinkedIn",
-    country: "United States",
-    location: "Remote",
-    salary: "$115k - $145k",
-    posted: "2 days ago",
-    summary: "Build and optimize customer-facing React interfaces for a fast-growing SaaS product.",
-    tags: ["React", "TypeScript", "Design Systems"]
-  },
-  {
-    id: 2,
-    title: "Product Designer",
-    company: "PixelBloom",
-    platform: "Indeed",
-    country: "Canada",
-    location: "Toronto, ON",
-    salary: "CA$90k - CA$120k",
-    posted: "1 day ago",
-    summary: "Design user journeys and collaborate with PM and engineering to improve onboarding flows.",
-    tags: ["Figma", "UX Research", "Prototyping"]
-  },
-  {
-    id: 3,
-    title: "Backend Developer",
-    company: "CloudLoom",
-    platform: "Glassdoor",
-    country: "Germany",
-    location: "Berlin",
-    salary: "EUR 75k - EUR 95k",
-    posted: "4 days ago",
-    summary: "Develop microservices and APIs to support high-volume B2B workloads.",
-    tags: ["Node.js", "PostgreSQL", "Docker"]
-  },
-  {
-    id: 4,
-    title: "Data Analyst",
-    company: "BrightPath",
-    platform: "LinkedIn",
-    country: "United Kingdom",
-    location: "London",
-    salary: "GBP 45k - GBP 60k",
-    posted: "5 days ago",
-    summary: "Turn product and marketing data into insights that inform roadmap decisions.",
-    tags: ["SQL", "Tableau", "Python"]
-  },
-  {
-    id: 5,
-    title: "Mobile App Developer",
-    company: "OrbitPay",
-    platform: "Wellfound",
-    country: "India",
-    location: "Bengaluru",
-    salary: "INR 18L - INR 28L",
-    posted: "3 days ago",
-    summary: "Create mobile payment experiences with smooth performance and strong reliability.",
-    tags: ["React Native", "TypeScript", "Testing"]
-  },
-  {
-    id: 6,
-    title: "DevOps Engineer",
-    company: "KiteOps",
-    platform: "Indeed",
-    country: "United States",
-    location: "Austin, TX",
-    salary: "$125k - $160k",
-    posted: "1 week ago",
-    summary: "Own CI/CD infrastructure and cloud observability to improve release speed.",
-    tags: ["AWS", "Kubernetes", "Terraform"]
-  },
-  {
-    id: 7,
-    title: "QA Automation Engineer",
-    company: "ScaleBridge",
-    platform: "Glassdoor",
-    country: "Canada",
-    location: "Vancouver, BC",
-    salary: "CA$92k - CA$110k",
-    posted: "6 days ago",
-    summary: "Build reliable automated test suites and improve software quality metrics.",
-    tags: ["Cypress", "API Testing", "CI"]
-  },
-  {
-    id: 8,
-    title: "Machine Learning Engineer",
-    company: "SynthMind",
-    platform: "LinkedIn",
-    country: "Germany",
-    location: "Munich",
-    salary: "EUR 90k - EUR 120k",
-    posted: "2 weeks ago",
-    summary: "Deploy ML models to production and collaborate on model monitoring strategy.",
-    tags: ["Python", "MLOps", "TensorFlow"]
-  },
-  {
-    id: 9,
-    title: "Customer Success Manager",
-    company: "FlowHQ",
-    platform: "Wellfound",
-    country: "United Kingdom",
-    location: "Remote",
-    salary: "GBP 55k - GBP 70k",
-    posted: "2 days ago",
-    summary: "Guide enterprise customers through adoption and long-term platform value.",
-    tags: ["SaaS", "B2B", "Onboarding"]
-  },
-  {
-    id: 10,
-    title: "Full Stack Engineer",
-    company: "Lattice Labs",
-    platform: "Indeed",
-    country: "India",
-    location: "Hyderabad",
-    salary: "INR 24L - INR 32L",
-    posted: "1 day ago",
-    summary: "Work across UI and backend services to deliver end-to-end product features.",
-    tags: ["React", "Node.js", "PostgreSQL"]
-  },
-  {
-    id: 11,
-    title: "Technical Writer",
-    company: "DocuCore",
-    platform: "Glassdoor",
-    country: "United States",
-    location: "Remote",
-    salary: "$70k - $95k",
-    posted: "3 days ago",
-    summary: "Write product documentation and developer guides for API-first products.",
-    tags: ["Documentation", "APIs", "Developer Experience"]
-  },
-  {
-    id: 12,
-    title: "Marketing Operations Specialist",
-    company: "LaunchHarbor",
-    platform: "LinkedIn",
-    country: "Canada",
-    location: "Montreal, QC",
-    salary: "CA$78k - CA$96k",
-    posted: "4 days ago",
-    summary: "Optimize campaign workflows and improve lead pipeline tracking.",
-    tags: ["CRM", "Analytics", "Automation"]
-  }
-];
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { searchJobs, type JobListing, type SearchCriteria } from "./api/jobSearch";
+import { transcribeAudio } from "./api/transcribe";
 
 const JOB_COUNT_OPTIONS = [5, 10, 20];
 const ALL_FILTER_VALUE = "All";
 const AUDIO_MIME_TYPE = "audio/webm";
+
+const SEARCH_STAGES = [
+  "Analyzing your prompt",
+  "Running MCP server",
+  "Calling Playwright to fetch jobs",
+  "LLM processing results",
+  "Ranking the best matches",
+];
+const SEARCH_STAGE_INTERVAL_MS = 1800;
+
+const PLATFORM_OPTIONS = [ALL_FILTER_VALUE, "Naukri Gulf", "GulfTalent"];
+const COUNTRY_OPTIONS = [
+  ALL_FILTER_VALUE,
+  "UAE",
+  "Saudi Arabia",
+  "Qatar",
+  "Bahrain",
+  "Kuwait",
+];
 
 type RecorderStatus = "idle" | "recording" | "stopping" | "stopped" | "error";
 
@@ -172,6 +33,16 @@ const formatDuration = (seconds: number): string => {
     .padStart(2, "0");
   const secondsPart = (seconds % 60).toString().padStart(2, "0");
   return `${minutesPart}:${secondsPart}`;
+};
+
+const resolveOption = (value: string, options: string[], fallback: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return fallback;
+  }
+
+  const match = options.find((option) => option.toLowerCase() === normalized);
+  return match ?? fallback;
 };
 
 const getMicrophoneErrorMessage = (error: unknown): string => {
@@ -197,27 +68,33 @@ function App() {
   const [country, setCountry] = useState<string>(ALL_FILTER_VALUE);
   const [jobCount, setJobCount] = useState<number>(10);
   const [prompt, setPrompt] = useState<string>("");
-  const [results, setResults] = useState<JobPosting[]>(MOCK_JOBS.slice(0, 10));
+  const [results, setResults] = useState<JobListing[]>([]);
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria | null>(null);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [hasSearched, setHasSearched] = useState<boolean>(false);
+  const [searchStage, setSearchStage] = useState<number>(0);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [recorderStatus, setRecorderStatus] = useState<RecorderStatus>("idle");
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [microphoneError, setMicrophoneError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [transcript, setTranscript] = useState<string>("");
+  const [detectedCountry, setDetectedCountry] = useState<string>("");
+  const [detectedPlatform, setDetectedPlatform] = useState<string>("");
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const microphoneStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const recordingStartTimeRef = useRef<number>(0);
   const durationTimerRef = useRef<number | null>(null);
+  const autoSearchPendingRef = useRef<boolean>(false);
 
-  const platforms = useMemo(
-    () => [ALL_FILTER_VALUE, ...new Set(MOCK_JOBS.map((job) => job.platform))],
-    []
-  );
-  const countries = useMemo(
-    () => [ALL_FILTER_VALUE, ...new Set(MOCK_JOBS.map((job) => job.country))],
-    []
-  );
+  const platforms = PLATFORM_OPTIONS;
+  const countries = COUNTRY_OPTIONS;
 
   const stopMicrophoneStream = () => {
     const stream = microphoneStreamRef.current;
@@ -336,6 +213,21 @@ function App() {
   };
 
   useEffect(() => {
+    if (!isSearching) {
+      return;
+    }
+
+    setSearchStage(0);
+    const intervalId = window.setInterval(() => {
+      setSearchStage((previous) => Math.min(previous + 1, SEARCH_STAGES.length - 1));
+    }, SEARCH_STAGE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isSearching]);
+
+  useEffect(() => {
     if (!audioBlob) {
       setAudioUrl(null);
       return;
@@ -368,26 +260,111 @@ function App() {
     };
   }, []);
 
+  const runJobSearch = async (params: {
+    platform: string;
+    country: string;
+    prompt: string;
+    count: number;
+  }) => {
+    setIsSearching(true);
+    setHasSearched(true);
+    setSearchError(null);
+
+    const trimmedPrompt = params.prompt.trim();
+
+    try {
+      const data = await searchJobs({
+        platform: params.platform,
+        country: params.country,
+        count: params.count,
+        ...(trimmedPrompt.length > 0 ? { prompt: trimmedPrompt } : {}),
+      });
+      setResults(data.jobs);
+      setSearchCriteria(data.searchCriteria);
+    } catch (error) {
+      setSearchError(
+        error instanceof Error ? error.message : "Something went wrong while fetching jobs."
+      );
+      setResults([]);
+      setSearchCriteria(null);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const runSearch = (event: FormEvent) => {
     event.preventDefault();
-
-    const keyword = prompt.trim().toLowerCase();
-
-    const filtered = MOCK_JOBS.filter((job) => {
-      const platformMatch = platform === ALL_FILTER_VALUE || job.platform === platform;
-      const countryMatch = country === ALL_FILTER_VALUE || job.country === country;
-      const promptMatch =
-        keyword.length === 0 ||
-        [job.title, job.company, job.summary, job.tags.join(" ")]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword);
-
-      return platformMatch && countryMatch && promptMatch;
-    });
-
-    setResults(filtered.slice(0, jobCount));
+    void runJobSearch({ platform, country, prompt, count: jobCount });
   };
+
+  const transcribeAndSearch = async (blob: Blob) => {
+    setIsTranscribing(true);
+    setTranscriptionError(null);
+
+    try {
+      const data = await transcribeAudio(blob, "recording.webm");
+
+      setTranscript(data.transcript);
+      setDetectedCountry(data.country);
+      setDetectedPlatform(data.platform);
+
+      const resolvedCountry = resolveOption(data.country, COUNTRY_OPTIONS, country);
+      const resolvedPlatform = resolveOption(data.platform, PLATFORM_OPTIONS, platform);
+
+      setCountry(resolvedCountry);
+      setPlatform(resolvedPlatform);
+      setPrompt(data.transcript);
+
+      setIsModalOpen(false);
+
+      await runJobSearch({
+        platform: resolvedPlatform,
+        country: resolvedCountry,
+        prompt: data.transcript,
+        count: jobCount,
+      });
+    } catch (error) {
+      setTranscriptionError(
+        error instanceof Error ? error.message : "Could not transcribe the recording."
+      );
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const openRecorderModal = () => {
+    setMicrophoneError(null);
+    setTranscriptionError(null);
+    setTranscript("");
+    setDetectedCountry("");
+    setDetectedPlatform("");
+    setAudioBlob(null);
+    setRecorderStatus("idle");
+    setRecordingDuration(0);
+    setIsModalOpen(true);
+  };
+
+  const closeRecorderModal = () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      autoSearchPendingRef.current = false;
+      recorder.stop();
+    }
+    setIsModalOpen(false);
+  };
+
+  const stopRecordingForSearch = () => {
+    autoSearchPendingRef.current = true;
+    stopRecording();
+  };
+
+  useEffect(() => {
+    if (audioBlob && autoSearchPendingRef.current) {
+      autoSearchPendingRef.current = false;
+      void transcribeAndSearch(audioBlob);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioBlob]);
 
   return (
     <main className="app-shell">
@@ -452,65 +429,119 @@ function App() {
             </label>
 
             <section className="recorder-panel" aria-live="polite">
-              <p className="recorder-title">Voice recording</p>
+              <p className="recorder-title">Voice search</p>
+              <p className="recorder-help">
+                Speak your request and we will detect the country and platform, then search
+                automatically.
+              </p>
               <button
                 type="button"
-                className={`microphone-button ${
-                  recorderStatus === "recording" ? "is-recording" : ""
-                }`}
-                onClick={recorderStatus === "recording" ? stopRecording : startRecording}
-                disabled={recorderStatus === "stopping"}
+                className="voice-search-button"
+                onClick={openRecorderModal}
+                disabled={isTranscribing || isSearching}
               >
-                {recorderStatus === "recording" ? "Stop Recording" : "Start Recording"}
+                <span className="voice-search-icon" aria-hidden="true">
+                  🎤
+                </span>
+                {isTranscribing ? "Transcribing..." : "Start voice search"}
               </button>
 
-              <div className="recorder-meta">
-                <p>
-                  Recording status: <strong>{recorderStatus}</strong>
-                </p>
-                <p>
-                  Recording duration: <strong>{formatDuration(recordingDuration)}</strong>
-                </p>
-              </div>
-
-              {recorderStatus === "recording" && (
-                <p className="recording-indicator">
-                  <span className="recording-dot" />
-                  Recording in progress
-                </p>
-              )}
-
-              {microphoneError && <p className="microphone-error">{microphoneError}</p>}
-
-              {audioBlob && (
-                <p className="audio-format">
-                  Saved audio format: <strong>{audioBlob.type || AUDIO_MIME_TYPE}</strong>
-                </p>
-              )}
-
-              {audioUrl && (
-                <audio controls className="audio-player" src={audioUrl}>
-                  Your browser does not support audio playback.
-                </audio>
-              )}
+              {transcriptionError && <p className="microphone-error">{transcriptionError}</p>}
             </section>
           </div>
 
-          <section className="transcript-placeholder">
+          <section className="transcript-card">
             <h3>Transcript</h3>
-            <p>No transcript available yet</p>
+            {transcript ? (
+              <>
+                <p className="transcript-text">{transcript}</p>
+                <div className="transcript-tags">
+                  <span className="transcript-tag">
+                    Country: <strong>{detectedCountry || "Not detected"}</strong>
+                  </span>
+                  <span className="transcript-tag">
+                    Platform: <strong>{detectedPlatform || "Not detected"}</strong>
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="transcript-empty">No transcript available yet</p>
+            )}
           </section>
 
-          <button type="submit" className="search-button">
-            Search jobs
+          <button type="submit" className="search-button" disabled={isSearching}>
+            {isSearching ? "Searching..." : "Search jobs"}
           </button>
+
+          {isSearching && (
+            <section className="search-progress" aria-live="polite">
+              <p className="search-progress-title">Working on your search</p>
+              <ul className="search-stage-list">
+                {SEARCH_STAGES.map((stage, index) => {
+                  const status =
+                    index < searchStage
+                      ? "done"
+                      : index === searchStage
+                        ? "active"
+                        : "pending";
+                  return (
+                    <li key={stage} className={`search-stage search-stage-${status}`}>
+                      <span className="search-stage-icon" aria-hidden="true">
+                        {status === "done" ? "✓" : status === "active" ? "" : ""}
+                      </span>
+                      <span className="search-stage-label">{stage}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         </form>
 
+        {hasSearched && (
         <section className="results">
           <div className="results-header">
             <h2>Results</h2>
-            <p>{results.length} jobs found</p>
+            <p>{isSearching ? "Searching..." : `${results.length} jobs found`}</p>
           </div>
+
+          {searchError && <p className="search-error">{searchError}</p>}
+
+          {searchCriteria && !searchError && (
+            <div className="criteria-panel">
+              <p className="criteria-title">Interpreted search criteria</p>
+              <ul className="criteria-list">
+                <li>
+                  Role: <strong>{searchCriteria.role || "Any"}</strong>
+                </li>
+                <li>
+                  Country: <strong>{searchCriteria.country || "Any"}</strong>
+                </li>
+                <li>
+                  Remote: <strong>{searchCriteria.remote ? "Yes" : "No"}</strong>
+                </li>
+                <li>
+                  Count: <strong>{searchCriteria.count}</strong>
+                </li>
+                <li>
+                  Min salary:{" "}
+                  <strong>
+                    {searchCriteria.salaryMin === null ? "Any" : searchCriteria.salaryMin}
+                  </strong>
+                </li>
+                {searchCriteria.skills.length > 0 && (
+                  <li className="criteria-skills">
+                    Skills:{" "}
+                    {searchCriteria.skills.map((skill) => (
+                      <span key={skill} className="criteria-skill">
+                        {skill}
+                      </span>
+                    ))}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           <div className="card-grid">
             {results.map((job) => (
@@ -526,23 +557,116 @@ function App() {
                 <p className="meta">
                   {job.salary} - Posted {job.posted}
                 </p>
+                <p className="meta">Match score: {job.matchScore}%</p>
                 <p className="summary">{job.summary}</p>
                 <ul className="tag-list">
                   {job.tags.map((tag) => (
                     <li key={`${job.id}-${tag}`}>{tag}</li>
                   ))}
                 </ul>
+                <a className="job-link" href={job.url} target="_blank" rel="noreferrer">
+                  View job
+                </a>
               </article>
             ))}
           </div>
 
-          {results.length === 0 && (
+          {!isSearching && !searchError && results.length === 0 && (
             <p className="empty-state">
-              No mock jobs match your filters. Try choosing another platform, country, or prompt.
+              No jobs match your filters. Try choosing another platform, country, or prompt.
             </p>
           )}
         </section>
+        )}
       </section>
+
+      {isModalOpen && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Voice job search"
+          onClick={closeRecorderModal}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Voice job search</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={closeRecorderModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-instructions">
+              <p className="modal-instructions-title">While recording, clearly mention:</p>
+              <ul>
+                <li>
+                  The <strong>country</strong> — UAE, Saudi Arabia, Qatar, Bahrain, or Kuwait
+                </li>
+                <li>
+                  The <strong>platform</strong> — Naukri Gulf or GulfTalent
+                </li>
+              </ul>
+              <p className="modal-example">
+                Example: “Find me Node.js developer jobs in UAE on GulfTalent.”
+              </p>
+            </div>
+
+            <div className="modal-recorder">
+              <button
+                type="button"
+                className={`mic-orb ${recorderStatus === "recording" ? "is-recording" : ""}`}
+                onClick={
+                  recorderStatus === "recording" ? stopRecordingForSearch : startRecording
+                }
+                disabled={recorderStatus === "stopping" || isTranscribing}
+              >
+                <span className="mic-orb-icon" aria-hidden="true">
+                  {recorderStatus === "recording" ? "■" : "🎤"}
+                </span>
+              </button>
+
+              <p className="modal-status">
+                {isTranscribing
+                  ? "Transcribing your recording..."
+                  : recorderStatus === "recording"
+                    ? "Listening... tap to stop"
+                    : recorderStatus === "stopped"
+                      ? "Recording captured"
+                      : "Tap the mic to start"}
+              </p>
+
+              <p className="modal-duration">{formatDuration(recordingDuration)}</p>
+
+              {recorderStatus === "recording" && (
+                <p className="recording-indicator">
+                  <span className="recording-dot" />
+                  Recording in progress
+                </p>
+              )}
+
+              {isTranscribing && (
+                <div className="modal-spinner" aria-hidden="true">
+                  <span className="spinner" />
+                </div>
+              )}
+
+              {audioUrl && recorderStatus === "stopped" && !isTranscribing && (
+                <audio controls className="audio-player" src={audioUrl}>
+                  Your browser does not support audio playback.
+                </audio>
+              )}
+
+              {microphoneError && <p className="microphone-error">{microphoneError}</p>}
+              {transcriptionError && <p className="microphone-error">{transcriptionError}</p>}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
