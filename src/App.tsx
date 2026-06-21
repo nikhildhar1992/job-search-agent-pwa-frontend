@@ -468,7 +468,8 @@ function App() {
               </p>
               {installStatus === "dismissed" && (
                 <p className="install-hint">
-                  Install prompt was dismissed. If needed, use browser menu > Add to home screen.
+                  Install prompt was dismissed. If needed, use browser menu &gt; Add to home
+                  screen.
                 </p>
               )}
               {installError && <p className="install-error">{installError}</p>}
