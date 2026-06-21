@@ -15,7 +15,15 @@ const SEARCH_STAGES = [
 ];
 const SEARCH_STAGE_INTERVAL_MS = 1800;
 
-const PLATFORM_OPTIONS = [ALL_FILTER_VALUE, "Naukri Gulf", "GulfTalent"];
+const PLATFORM_OPTIONS = [
+  ALL_FILTER_VALUE,
+  "Naukri Gulf",
+  "GulfTalent",
+  "Greenhouse",
+  "Lever",
+  "Ashby",
+  "Workable",
+];
 const COUNTRY_OPTIONS = [
   ALL_FILTER_VALUE,
   "UAE",
@@ -23,6 +31,10 @@ const COUNTRY_OPTIONS = [
   "Qatar",
   "Bahrain",
   "Kuwait",
+  "Germany",
+  "Netherlands",
+  "Ireland",
+  "Finland",
 ];
 
 type RecorderStatus = "idle" | "recording" | "stopping" | "stopped" | "error";
@@ -94,7 +106,7 @@ function App() {
   const autoSearchPendingRef = useRef<boolean>(false);
 
   const platforms = PLATFORM_OPTIONS;
-  const countries = COUNTRY_OPTIONS;
+  // const countries = COUNTRY_OPTIONS;
 
   const stopMicrophoneStream = () => {
     const stream = microphoneStreamRef.current;
@@ -332,6 +344,13 @@ function App() {
     }
   };
 
+  const retryTranscription = () => {
+    if (!audioBlob || isTranscribing) {
+      return;
+    }
+    void transcribeAndSearch(audioBlob);
+  };
+
   const openRecorderModal = () => {
     setMicrophoneError(null);
     setTranscriptionError(null);
@@ -391,6 +410,7 @@ function App() {
               </select>
             </label>
 
+            {/* Country selection is temporarily disabled; the platform determines the region.
             <label className="field">
               <span>Country</span>
               <select value={country} onChange={(event) => setCountry(event.target.value)}>
@@ -401,6 +421,7 @@ function App() {
                 ))}
               </select>
             </label>
+            */}
 
             <label className="field">
               <span>Job count</span>
@@ -605,14 +626,15 @@ function App() {
               <p className="modal-instructions-title">While recording, clearly mention:</p>
               <ul>
                 <li>
-                  The <strong>country</strong> — UAE, Saudi Arabia, Qatar, Bahrain, or Kuwait
+                  The <strong>role</strong> you are looking for — e.g. Software Developer
                 </li>
                 <li>
-                  The <strong>platform</strong> — Naukri Gulf or GulfTalent
+                  The <strong>platform</strong> — Naukri Gulf, GulfTalent, Greenhouse, Lever,
+                  Ashby, or Workable
                 </li>
               </ul>
               <p className="modal-example">
-                Example: “Find me Node.js developer jobs in UAE on GulfTalent.”
+                Example: “Search Software Developer jobs from platform Greenhouse.”
               </p>
             </div>
 
@@ -662,7 +684,21 @@ function App() {
               )}
 
               {microphoneError && <p className="microphone-error">{microphoneError}</p>}
-              {transcriptionError && <p className="microphone-error">{transcriptionError}</p>}
+              {transcriptionError && (
+                <div className="transcription-error-box">
+                  <p className="microphone-error">{transcriptionError}</p>
+                  {audioBlob && (
+                    <button
+                      type="button"
+                      className="retry-button"
+                      onClick={retryTranscription}
+                      disabled={isTranscribing}
+                    >
+                      {isTranscribing ? "Retrying..." : "Retry"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
