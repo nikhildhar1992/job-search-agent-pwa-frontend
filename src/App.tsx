@@ -26,6 +26,22 @@ const COUNTRY_OPTIONS = [
 ];
 
 type RecorderStatus = "idle" | "recording" | "stopping" | "stopped" | "error";
+type InstallStatus = "idle" | "ready" | "installing" | "dismissed" | "installed";
+
+interface DeferredInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: "accepted" | "dismissed";
+    platform: string;
+  }>;
+}
+
+const isRunningStandalone = (): boolean => {
+  const navWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return (
+    window.matchMedia("(display-mode: standalone)").matches || navWithStandalone.standalone === true
+  );
+};
 
 const formatDuration = (seconds: number): string => {
   const minutesPart = Math.floor(seconds / 60)
@@ -85,6 +101,11 @@ function App() {
   const [detectedCountry, setDetectedCountry] = useState<string>("");
   const [detectedPlatform, setDetectedPlatform] = useState<string>("");
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] =
+    useState<DeferredInstallPromptEvent | null>(null);
+  const [installStatus, setInstallStatus] = useState<InstallStatus>("idle");
+  const [showInstallBanner, setShowInstallBanner] = useState<boolean>(false);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const microphoneStreamRef = useRef<MediaStream | null>(null);
@@ -260,6 +281,66 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isRunningStandalone()) {
+      setInstallStatus("installed");
+      return;
+    }
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      const installEvent = event as DeferredInstallPromptEvent;
+      installEvent.preventDefault();
+      setDeferredInstallPrompt(installEvent);
+      setInstallStatus("ready");
+      setShowInstallBanner(true);
+      setInstallError(null);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallStatus("installed");
+      setDeferredInstallPrompt(null);
+      setShowInstallBanner(false);
+      setInstallError(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const triggerInstallPrompt = async () => {
+    if (!deferredInstallPrompt) {
+      setInstallError("Install prompt is not available yet. Please try again in a moment.");
+      return;
+    }
+
+    setInstallError(null);
+    setInstallStatus("installing");
+
+    try {
+      await deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+
+      if (choice.outcome === "accepted") {
+        setInstallStatus("installed");
+        setShowInstallBanner(false);
+      } else {
+        setInstallStatus("dismissed");
+      }
+    } catch {
+      setInstallStatus("ready");
+      setInstallError(
+        "Could not open the install prompt. Use browser menu > Add to home screen as fallback."
+      );
+    } finally {
+      setDeferredInstallPrompt(null);
+    }
+  };
+
   const runJobSearch = async (params: {
     platform: string;
     country: string;
@@ -377,6 +458,50 @@ function App() {
             prompt.
           </p>
         </header>
+
+        {installStatus !== "installed" && showInstallBanner && (
+          <section className="install-banner" aria-live="polite">
+            <div>
+              <p className="install-title">Install this app</p>
+              <p className="install-copy">
+                Add Job Search to your home screen for a full-screen mobile experience.
+              </p>
+              {installStatus === "dismissed" && (
+                <p className="install-hint">
+                  Install prompt was dismissed. If needed, use browser menu > Add to home screen.
+                </p>
+              )}
+              {installError && <p className="install-error">{installError}</p>}
+            </div>
+            <div className="install-actions">
+              <button
+                type="button"
+                className="install-button"
+                onClick={() => void triggerInstallPrompt()}
+                disabled={installStatus === "installing"}
+              >
+                {installStatus === "installing" ? "Opening..." : "Install app"}
+              </button>
+              <button
+                type="button"
+                className="install-later-button"
+                onClick={() => setShowInstallBanner(false)}
+              >
+                Not now
+              </button>
+            </div>
+          </section>
+        )}
+
+        {installStatus !== "installed" && !showInstallBanner && (
+          <button
+            type="button"
+            className="install-reopen-button"
+            onClick={() => setShowInstallBanner(true)}
+          >
+            Install app
+          </button>
+        )}
 
         <form className="search-form" onSubmit={runSearch}>
           <div className="field-grid">
