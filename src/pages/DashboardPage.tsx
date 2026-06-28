@@ -3,6 +3,7 @@ type DemoVideo = {
   title: string;
   description: string;
   videoUrl: string;
+  localVideoSrc?: string;
 };
 
 const DEMO_VIDEOS: DemoVideo[] = [
@@ -11,12 +12,14 @@ const DEMO_VIDEOS: DemoVideo[] = [
     title: "Voice search demo",
     description: "See how to record a prompt and let the app detect platform and role.",
     videoUrl: "",
+    localVideoSrc: "/demo-videos/voice-search-demo.webm",
   },
   {
     id: "job-search",
     title: "Job search demo",
     description: "Walk through filters, prompts, and how ranked results are shown.",
     videoUrl: "",
+    localVideoSrc: "/demo-videos/job-search-agent-demo.webm",
   },
 ];
 
@@ -39,7 +42,13 @@ function DashboardPage() {
               <h2>{video.title}</h2>
               <p className="demo-card-copy">{video.description}</p>
 
-              {video.videoUrl ? (
+              {video.localVideoSrc ? (
+                <div className="demo-video-frame demo-video-native">
+                  <video controls playsInline preload="metadata" src={video.localVideoSrc}>
+                    Your browser does not support video playback.
+                  </video>
+                </div>
+              ) : video.videoUrl ? (
                 <div className="demo-video-frame">
                   <iframe
                     src={video.videoUrl}
