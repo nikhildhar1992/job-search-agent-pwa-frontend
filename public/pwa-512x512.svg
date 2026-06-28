@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Job Search App Icon Large">
+  <defs>
+    <linearGradient id="icon512bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="url(#icon512bg)" />
+  <path
+    d="M126 182h260a30 30 0 0 1 30 30v146a30 30 0 0 1-30 30H126a30 30 0 0 1-30-30V212a30 30 0 0 1 30-30zm130 32v62m-48 0h96"
+    stroke="#eff6ff"
+    stroke-width="32"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>
